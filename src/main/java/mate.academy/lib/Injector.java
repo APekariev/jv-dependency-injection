@@ -2,7 +2,6 @@ package mate.academy.lib;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.Map;
 import mate.academy.service.FileReaderService;
@@ -14,6 +13,12 @@ import mate.academy.service.impl.ProductServiceImpl;
 
 public class Injector {
     private static final Injector injector = new Injector();
+    private Map<Class<?>, Class<?>> interfaceImplementations = Map.of(
+            ProductService.class, ProductServiceImpl.class,
+            ProductParser.class, ProductParserImpl.class,
+            FileReaderService.class, FileReaderServiceImpl.class
+    );
+    private Map<Class<?>, Object> componentInstances = new HashMap<>();
 
     public static Injector getInjector() {
         return injector;
@@ -43,10 +48,6 @@ public class Injector {
     }
 
     private Class<?> findImplementation(Class<?> interfaceClazz) {
-        Map<Class<?>, Class<?>> interfaceImplementations = new HashMap<>();
-        interfaceImplementations.put(ProductService.class, ProductServiceImpl.class);
-        interfaceImplementations.put(ProductParser.class, ProductParserImpl.class);
-        interfaceImplementations.put(FileReaderService.class, FileReaderServiceImpl.class);
         if (interfaceClazz.isInterface()) {
             return interfaceImplementations.get(interfaceClazz);
         }
@@ -54,17 +55,21 @@ public class Injector {
     }
 
     private Object getComponentInstance(Class<?> clazz) {
-        Object componentClassInstance = null;
+        if (componentInstances.containsKey(clazz)) {
+            return componentInstances.get(clazz);
+        }
+        Object componentClassInstance;
         if (clazz.isAnnotationPresent(Component.class)) {
             try {
                 Constructor<?> constructor = clazz.getConstructor();
                 componentClassInstance = constructor.newInstance();
-            } catch (NoSuchMethodException | InvocationTargetException
-                     | InstantiationException | IllegalAccessException e) {
+                componentInstances.put(clazz, componentClassInstance);
+            } catch (ReflectiveOperationException e) {
                 throw new RuntimeException("Can't create a new instance of " + clazz.getName());
             }
         } else {
-            throw new RuntimeException("Not component class: " + clazz);
+            throw new RuntimeException("Injection failed, missing @Component "
+                    + "annotation on the class: " + clazz);
         }
         return componentClassInstance;
     }
